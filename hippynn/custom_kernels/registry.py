@@ -60,4 +60,5 @@ class MessagePassingKernels:
         :param hidden: Show all implementations, even those which have no improved performance characteristics.
         :return:
         """
-        return [k for k in self._registered_implementations.keys() if not k.startswith("_")]
+        
+        return [k for k in self._registered_implementations.keys() if hidden or not k.startswith("_")]
