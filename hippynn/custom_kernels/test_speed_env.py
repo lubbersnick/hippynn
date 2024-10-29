@@ -43,7 +43,8 @@ def main(args=None):
             setattr(args, k, default)
 
     test_spec = {k: count for k in TEST_PARAMS if (count := getattr(args, k, 0)) > 0}
-    print(TEST_PARAMS.keys())
+    
+    print("Testing specification:")
     print(test_spec)
     results = {}
 
@@ -60,6 +61,11 @@ def main(args=None):
         implementations = MessagePassingKernels.get_available_implementations()
     if args.all_hidden:
         implementations = MessagePassingKernels.get_available_implementations(hidden=True)
+    
+
+    print("Testing implementations:")
+    print(implementations)
+
 
     # Error if implementation does not exist.
     for impl in implementations:
