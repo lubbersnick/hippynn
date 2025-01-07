@@ -280,7 +280,7 @@ class Database:
         :param split_mask: a boolean array for where to split
         :return:
         """
-        if isinstance(split_mask, torch.tensor):
+        if isinstance(split_mask, torch.Tensor):
             split_mask = split_mask.numpy()
         if split_mask.dtype != np.bool_:
             if not np.isin(split_mask, [0, 1]).all():
