@@ -1,7 +1,6 @@
 """
 Interface for creating LAMMPS MLIAP Unified models.
 """
-import pickle
 import warnings
 
 import numpy as np
@@ -20,7 +19,7 @@ from hippynn.graphs.nodes.indexers import PaddingIndexer
 from hippynn.graphs.nodes.physics import GradientNode, VecMag
 from hippynn.graphs.nodes.inputs import SpeciesNode
 from hippynn.graphs.nodes.pairs import PairFilter
-
+from hippynn.graphs.nodes.targets import AtomizationEnergyNode
 
 class MLIAPInterface(MLIAPUnified):
     """
@@ -175,6 +174,9 @@ def setup_LAMMPS_graph(energy):
     :param energy: energy node for lammps interface
     :return: graph for computing from lammps MLIAP unified inputs.
     """
+    if isinstance(energy, AtomizationEnergyNode):
+        energy = energy.create_henergy_equivalent()
+
     required_nodes = [energy]
 
     why = "Generating LAMMPS Calculator interface"
