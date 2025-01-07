@@ -115,7 +115,6 @@ def load_db(db_info, en_name, force_name, seed, anidata_location, n_workers):
     # Drop indices where computed energy not retrieved.
     found_indices = ~np.isnan(database.arr_dict[en_name])
     database.arr_dict = {k: v[found_indices] for k, v in database.arr_dict.items()}
-    database.make_random_split("delete",size=0.99999); del database.splits['delete']
     database.make_trainvalidtest_split(test_size=0.1, valid_size=0.1)
     return database
 
