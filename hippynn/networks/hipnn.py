@@ -124,7 +124,7 @@ class Hipnn(torch.nn.Module):
 
         if isinstance(self.nf, int):
             if n_interaction_layers is None:
-                raise ValueError("Must provide n_interaction layers if n_features is a single integer.")
+                raise ValueError("Must provide 'n_interaction_layers' if n_features is a single integer.")
             self.feature_sizes = (self.nf_in, *(self.nf for _ in range(n_interaction_layers)))
         else:
             if n_interaction_layers is not None:
