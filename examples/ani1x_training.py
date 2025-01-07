@@ -19,7 +19,7 @@ import hippynn
 import ase.units
 
 
-def make_model(network_params,tensor_order):
+def make_model(network_params, tensor_order, atomization_consistent):
     """
     Build the model graph for energy and potentially force prediction.
     """
@@ -33,13 +33,18 @@ def make_model(network_params,tensor_order):
     species = inputs.SpeciesNode(db_name="atomic_numbers")
     positions = inputs.PositionsNode(db_name="coordinates")
     network = net_class("hipnn_model", (species, positions), module_kwargs=network_params)
-    henergy = targets.HEnergyNode("HEnergy", network)
+
+    if not atomization_consistent:
+        henergy = targets.HEnergyNode("HEnergy", network)
+    else:
+        henergy = targets.AtomizationEnergyNode("HEnergy", network)
+
     force = physics.GradientNode("forces", (henergy, positions), sign=-1)
 
     return henergy, force
 
 
-def make_loss(henergy, force,force_training):
+def make_loss(henergy, force, force_training):
     """
     Build the loss graph for energy and force error.
     """
@@ -68,8 +73,11 @@ def make_loss(henergy, force,force_training):
     return losses
 
 
-# wb97x-6-31g*, G16. Doesn't need to be exact for most models.
-SELF_ENERGY_APPROX = {'C': -37.764142, 'H': -0.4993212, 'N': -54.4628753, 'O': -74.940046}
+# wb97x-6-31g*, G16. Doesn't need to be exact for most models, except atomization consistent.
+# # # Old values with singlet/triplet multiplicity only
+# # SELF_ENERGY_APPROX = {'C': -37.764142, 'H': -0.4993212, 'N': -54.4628753, 'O': -74.940046}
+# Recalculated with appropriate vacuum multiplicity
+SELF_ENERGY_APPROX = {'C': -37.8338334397, 'H': -0.499321232710, 'N': -54.5732824628, 'O': -75.0424519384}
 SELF_ENERGY_APPROX = {k: SELF_ENERGY_APPROX[v] for k, v in zip([6, 1, 7, 8], 'CHNO')}
 SELF_ENERGY_APPROX[0] = 0
 
@@ -107,7 +115,7 @@ def load_db(db_info, en_name, force_name, seed, anidata_location, n_workers):
     # Drop indices where computed energy not retrieved.
     found_indices = ~np.isnan(database.arr_dict[en_name])
     database.arr_dict = {k: v[found_indices] for k, v in database.arr_dict.items()}
-
+    database.make_random_split("delete",size=0.99999); del database.splits['delete']
     database.make_trainvalidtest_split(test_size=0.1, valid_size=0.1)
     return database
 
@@ -166,7 +174,8 @@ def get_data_names(qm_method, basis_set):
 
 def main(args):
     torch.manual_seed(args.seed)
-    torch.cuda.set_device(args.gpu)
+    if args.use_gpu:
+        torch.cuda.set_device(args.gpu)
     torch.set_default_dtype(torch.float32)
 
     hippynn.settings.WARN_LOW_DISTANCES = False
@@ -187,14 +196,16 @@ def main(args):
 
     with hippynn.tools.active_directory(netname):
         with hippynn.tools.log_terminal("training_log.txt", 'wt'):
-            henergy, force = make_model(network_parameters,tensor_order=args.tensor_order)
+            henergy, force = make_model(network_parameters,
+                                        tensor_order=args.tensor_order,
+                                        atomization_consistent=args.atomization_consistent)
 
             en_name, force_name = get_data_names(args.qm_method, args.basis_set)
 
             henergy.mol_energy.db_name = en_name
             force.db_name = force_name
 
-            validation_losses = make_loss(henergy, force,force_training=args.force_training)
+            validation_losses = make_loss(henergy, force, force_training=args.force_training)
 
             train_loss = validation_losses["LossTotal"]
 
@@ -235,6 +246,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--tag", type=str, default="TEST_MODEL_ANI1X", help='name for run')
     parser.add_argument("--gpu", type=int, default=0, help='which GPU to run on')
+    parser.add_argument("--use_gpu", type=bool, default=False, help='Whether to use GPU')
+
     parser.add_argument("--seed", type=int, default=0, help='random seed for init and split')
 
     parser.add_argument("--n_interactions", type=int, default=2)
@@ -245,6 +258,7 @@ if __name__ == "__main__":
     parser.add_argument("--lower_cutoff",type=float,default=0.75,
             help="Where to initialize the shortest distance sensitivty")
     parser.add_argument("--tensor_order",type=int,default=0)
+    parser.add_argument("--atomization_consistent", type=bool, default=True)
 
     parser.add_argument("--anidata_location", type=str, default='../../../datasets/ani1x_release/ani1x-release.h5')
     parser.add_argument("--qm_method", type=str, default='wb97x')
