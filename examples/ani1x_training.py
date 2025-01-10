@@ -82,7 +82,7 @@ SELF_ENERGY_APPROX = {k: SELF_ENERGY_APPROX[v] for k, v in zip([6, 1, 7, 8], 'CH
 SELF_ENERGY_APPROX[0] = 0
 
 
-def load_db(db_info, en_name, force_name, seed, anidata_location, n_workers):
+def load_db(db_info, en_name, force_name, seed, anidata_location, n_workers, use_ccx_subset):
     """
     Load the database.
     """
@@ -91,7 +91,10 @@ def load_db(db_info, en_name, force_name, seed, anidata_location, n_workers):
 
     # Ensure total energies loaded in float64.
     torch.set_default_dtype(torch.float64)
-    import os
+
+    CCX_EN_NAME = "ccsd(t)_cbs.energy"
+    if use_ccx_subset:
+        db_info['targets'].append(CCX_EN_NAME)
     database = PyAniFileDB(
         file=anidata_location,
         species_key='atomic_numbers',
@@ -99,6 +102,8 @@ def load_db(db_info, en_name, force_name, seed, anidata_location, n_workers):
         num_workers=n_workers,
         **db_info
     )
+    if en_name != CCX_EN_NAME:
+        database.targets = [x for x in database.targets if x != CCX_EN_NAME]
 
     # compute (approximate) atomization energy by subtracting self energies
     self_energy = np.vectorize(SELF_ENERGY_APPROX.__getitem__)(database.arr_dict['atomic_numbers'])
@@ -110,10 +115,14 @@ def load_db(db_info, en_name, force_name, seed, anidata_location, n_workers):
     if force_name in database.arr_dict:
         database.arr_dict[force_name] = database.arr_dict[force_name]*conversion
     torch.set_default_dtype(torch.float32)
-    database.arr_dict['atomic_numbers']=database.arr_dict['atomic_numbers'].astype(np.int64)
+    database.arr_dict['atomic_numbers'] = database.arr_dict['atomic_numbers'].astype(np.int64)
 
     # Drop indices where computed energy not retrieved.
-    found_indices = ~np.isnan(database.arr_dict[en_name])
+    if use_ccx_subset:
+        filter_name = CCX_EN_NAME
+    else:
+        filter_name = en_name
+    found_indices = ~np.isnan(database.arr_dict[filter_name])
     database.arr_dict = {k: v[found_indices] for k, v in database.arr_dict.items()}
     database.make_trainvalidtest_split(test_size=0.1, valid_size=0.1)
     return database
@@ -217,7 +226,8 @@ def main(args):
                                force_name,
                                n_workers=args.n_workers,
                                seed=args.seed,
-                               anidata_location=args.anidata_location)
+                               anidata_location=args.anidata_location,
+                               use_ccx_subset=args.use_ccx_subset)
 
             from hippynn.pretraining import hierarchical_energy_initialization
 
@@ -255,9 +265,9 @@ if __name__ == "__main__":
     parser.add_argument("--n_sensitivities", type=int, default=20)
     parser.add_argument("--cutoff_distance", type=float, default=6.5)
     parser.add_argument("--lower_cutoff",type=float,default=0.75,
-            help="Where to initialize the shortest distance sensitivty")
+            help="Where to initialize the shortest distance sensitivity")
     parser.add_argument("--tensor_order",type=int,default=0)
-    parser.add_argument("--atomization_consistent", type=bool, default=True)
+    parser.add_argument("--atomization_consistent", type=bool, default=False)
 
     parser.add_argument("--anidata_location", type=str, default='../../../datasets/ani1x_release/ani1x-release.h5')
     parser.add_argument("--qm_method", type=str, default='wb97x')
@@ -270,6 +280,11 @@ if __name__ == "__main__":
     parser.add_argument("--patience",type=int, default=5)
     parser.add_argument("--max_epochs",type=int, default=500)
     parser.add_argument("--stopping_key",type=str, default="T-RMSE")
+
+    parser.add_argument("--use_ccx_subset",type=bool, default=False,
+                        help="Train only to configurations for the ANI-1ccx dataset."
+                             " Note that this will still use the energies using the `qm_method` argument.")
+
 
     parser.add_argument("--noprogress", action='store_true', default=False, help='suppress progress bars')
     parser.add_argument("--n_workers", type=int, default=2, help='workers for pytorch dataloaders')
