@@ -261,7 +261,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--n_interactions", type=int, default=2)
     parser.add_argument("--n_atom_layers", type=int, default=3)
-    parser.add_argument("--n_features", type=int, default=20)
+    parser.add_argument("--n_features", type=int, default=128)
     parser.add_argument("--n_sensitivities", type=int, default=20)
     parser.add_argument("--cutoff_distance", type=float, default=6.5)
     parser.add_argument("--lower_cutoff",type=float,default=0.75,
@@ -275,7 +275,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--force_training", action='store_true', default=False)
 
-    parser.add_argument("--batch_size",type=int, default=1024)
+    parser.add_argument("--batch_size",type=int, default=256)
     parser.add_argument("--init_lr",type=float, default=1e-3)
     parser.add_argument("--patience",type=int, default=5)
     parser.add_argument("--max_epochs",type=int, default=500)
