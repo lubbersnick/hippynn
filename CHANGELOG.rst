@@ -9,7 +9,7 @@ Breaking changes:
   functions are ``load_checkpoint``, ``load_checkpoint_from_cwd``, and
   ``restore_checkpoint``.
 - ``database.make_trainvalidtest_split`` now only takes keyword arguments to
-  avoid confusions. Use ``make_trainvalidtest_split(test_size=a, valid_size=b)``
+  avoid confusion. Use ``make_trainvalidtest_split(test_size=a, valid_size=b)``
   instead of ``make_trainvalidtest_split(a, b)``.
 - Invalid custom kernel specifications are now errors rather than warnings.
 - Method of specifying units for custom MD algorithms has changed.
@@ -31,6 +31,7 @@ New Features:
   are compatible with molecular dynamics codes such ASE and LAMMPS.
 - Added the ability to weight different systems/atoms/bonds in a loss function.
 - Added new function to reload library settings.
+- Added atomization-consistent node which exactly constrains their predictions in a dissociated limit.
 
 
 Improvements:
@@ -47,6 +48,7 @@ Improvements:
 - Improved detection of valid custom kernel implementation.
 - Improved computational efficiency of HIP-NN-TS network.
 - ``StressForceNode`` now also works with batch size greater than 1.
+- Allow testing of splits of arbitrary names using test_model, as long as those splits contain the required variables.
 
 
 Bug Fixes:
