@@ -79,7 +79,12 @@ except ImportError:
     pass
 else:
     del lammps
-    from .interfaces import lammps_interface
+    try:
+        from .interfaces import lammps_interface
+    except Exception as eee:
+        import warnings
+        warnings.warn(f"Lammps interface was not importable due to exception: :{eee}")
+        del eee, warnings
 
 # The order is adjusted to put functions after objects in the documentation.
 _dir = dir()
