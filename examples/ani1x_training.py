@@ -233,11 +233,15 @@ def main(args):
 
             hierarchical_energy_initialization(henergy, database, trainable_after=False)
 
+            patience = args.patience
+            if args.use_ccx_subset:
+                patience *= 4
+
             setup_params = setup_experiment(training_modules,
                                             device=args.gpu,
                                             batch_size=args.batch_size,
                                             init_lr=args.init_lr,
-                                            patience=args.patience,
+                                            patience=patience,
                                             max_epochs=args.max_epochs,
                                             stopping_key=args.stopping_key,
                                             )
@@ -273,7 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--qm_method", type=str, default='wb97x')
     parser.add_argument("--basis_set", type=str, default='dz')
 
-    parser.add_argument("--force_training", action='store_true', default=False)
+    parser.add_argument("--force_training", action='store_true', default=True)
 
     parser.add_argument("--batch_size",type=int, default=256)
     parser.add_argument("--init_lr",type=float, default=1e-3)
@@ -282,8 +286,9 @@ if __name__ == "__main__":
     parser.add_argument("--stopping_key",type=str, default="T-RMSE")
 
     parser.add_argument("--use_ccx_subset",type=bool, default=False,
-                        help="Train only to configurations for the ANI-1ccx dataset."
-                             " Note that this will still use the energies using the `qm_method` argument.")
+                        help="Train only to configurations from the ANI-1ccx subset."
+                             " Note that this will still use the energies using the `qm_method` argument."
+                             " *Note!* This argument will multiply the patience by a factor of 4.")
 
 
     parser.add_argument("--noprogress", action='store_true', default=False, help='suppress progress bars')
