@@ -196,23 +196,29 @@ class ChEQ(torch.nn.Module):
         self.units = units
         self.bound = lower_bound  # It was used to enforece Hubbard U to be positive (together with softplus), but it is replaced by using Tanh() here
 
+        # energy scale is measured in Hartree and length in bohr because the J_with_screening code does calculations with no unit factors
+
+        # self.length_scale affects input (coordinates) and out output units (for dipole)
+        # if "units == angstrom", we use *= self.length_scale to put those into bohr, and /= self.length_scale to take them out
         if self.units["length"] == "Angstrom":
-            length_scale = 1.0
+            length_scale = 1/0.529177210903 # converstion ~=2 (bohrs per angstrom)
         elif self.units["length"] == "Bohr":
-            length_scale = 0.529177210903
+            length_scale = 1.0
         else:
             raise ValueError("length with unit {} not supported yet".format(self.units["length"]))
 
+        # self.energy scale affects both input (elec. neg. and U) and output units (energy).
+        # if "units == eV", we use * self.energy scale to put those into hartree, and /self.energy scale to take them out
         if self.units["energy"] == "eV":
-            energy_scale = 1.0
+            energy_scale = (1/27.211386245988)
         elif self.units["energy"] == "Hartree":
-            energy_scale = 27.211386245988
+            energy_scale = 1.0
         elif self.units["energy"] == "kcal/mol":
-            energy_scale = 23.0609
+            energy_scale = 1/(23.0609*27.211386245988)
         else:
             raise ValueError("energy with unit {} not supported yet".format(self.units["energy"]))
 
-        self.conversion_factor = 1.0 / length_scale / energy_scale
+        # ## why is this not used self.conversion_factor = 1.0 / length_scale / energy_scale
         self.length_scale = length_scale
         self.energy_scale = energy_scale
 
@@ -234,7 +240,7 @@ class ChEQ(torch.nn.Module):
         nonblank = species > 0
         n_molecule, n_atom = coordinates.shape[:2]
         
-        # parameter ranges
+        # parameter ranges 
         chi_start = 2.0
         chi_end = 10.0
         U_start = 8.0
@@ -254,7 +260,20 @@ class ChEQ(torch.nn.Module):
         U0[nonblank] = U.reshape(-1)
         U = U0
 
+        # a_0 = 0.529177210903  # Bohr radius in Angstrom
+        # E_h = 27.211386245988  # Hatree energy in eV
+        # e2_over_four_pi_epsilon_0 = E_h * a_0
+
+        # chi has units of energy per charge
+        # U has units of energy per charge^2
+        # Convert these to hartree values before solver applied
+        U = self.energy_scale * U
+        chi = self.energy_scale * chi
+        # convert coordinates to bohr, wherever we started
+        coordinates = coordinates * self.length_scale 
+
         J = coul_J_with_Hubbard_U_screening(nonblank, coordinates, U)
+
         # E  = 0.5 q^T * (U+J) * q + q^T * (chi)
         # dE/dq = 0 ==> (U+J)q = - chi
 
@@ -284,10 +303,15 @@ class ChEQ(torch.nn.Module):
         b0[:, -1] = q_mol
 
         q, Ecoul = self.exact_charge(U, chi, J, A0, b0)
-
         d = self.dipole(q, coordinates)
+        
+        # multiply in the unit factor for the units the user asked for (was in Hartree)
+        Ecoul = Ecoul.reshape(-1, 1) / self.energy_scale
+        U =  U/self.energy_scale
+        chi = chi/self.energy_scale
+        d = d/self.length_scale
 
-        return q.reshape(n_molecule, n_atom), Ecoul.reshape(-1, 1) * self.energy_scale, d, U, chi
+        return q.reshape(n_molecule, n_atom), Ecoul, d, U, chi
 
     @staticmethod
     #@torch.jit.script
@@ -313,10 +337,11 @@ class ChEQ(torch.nn.Module):
 
 
 #@torch.compile
-def coul_J_with_Hubbard_U_screening(nonblank, coordinates, U):
-    a_0 = 0.529177210903  # Bohr radius in Angstrom
-    E_h = 27.211386245988  # Hatree energy in eV
-    e2_over_four_pi_epsilon_0 = E_h * a_0
+def coul_J_with_Hubbard_U_screening(nonblank, coordinates, U,):
+    """
+    Note: this function assumes atomic units, where kqq/1bohr = 1 Hartree
+
+    """
 
     _, n_atom, _ = coordinates.shape
     device = coordinates.device
@@ -335,7 +360,7 @@ def coul_J_with_Hubbard_U_screening(nonblank, coordinates, U):
     rij_penta = torch.pow(rij, 5)
 
     J0 = 1.0 / rij
-    TFACT = 16.0 / (5.0 * e2_over_four_pi_epsilon_0)
+    TFACT = 16.0 / (5.0)
 
     # shape:(n_mol, n_atom, n_atom)
     # TI = TFACT * U
@@ -401,6 +426,6 @@ def coul_J_with_Hubbard_U_screening(nonblank, coordinates, U):
         )
     J0 = torch.where(same_element_mask, J0-sub, J0)
 
-    J = torch.where(mask, e2_over_four_pi_epsilon_0 * J0, zero)
+    J = torch.where(mask, J0, zero)
 
     return J
