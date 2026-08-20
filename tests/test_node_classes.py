@@ -75,6 +75,23 @@ def test_create_simple_henergy_class(neural_network_node):
     pass
 
 
+def test_expand_parents_with_no_registered_forms(neural_network_node):
+    # Regression test: a class that inherits ExpandParents but registers no
+    # parent_expander forms must not crash on construction.
+    from hippynn.graphs.nodes.base import SingleNode
+    from hippynn.graphs.nodes.base.definition_helpers import ExpandParents
+    from hippynn.graphs import IdxType
+    from hippynn.layers.algebra import LambdaModule
+
+    class EmptyExpansionNode(ExpandParents, SingleNode):
+        index_state = IdxType.Atoms
+
+        def __init__(self, name, parents, module, **kwargs):
+            super().__init__(name, parents, module=module, **kwargs)
+
+    EmptyExpansionNode("empty", (neural_network_node,), module=LambdaModule(lambda x: x))
+
+
 def test_create_full_henergy(neural_network_node):
 
     # begin usage snippet

@@ -183,7 +183,7 @@ class ParentExpander:
 
     def __init__(self):
         # Matches is a tuple of tuples of (form, matching function)
-        self.matches = NotImplemented
+        self.matches = ()
 
     def __iter__(self):
         return iter(self.matches)
